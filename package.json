@@ -20,7 +20,8 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.2.0"
+    "@tauri-apps/api": "^2.2.0",
+    "@tauri-apps/plugin-deep-link": "^2.4.7"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.2.7",

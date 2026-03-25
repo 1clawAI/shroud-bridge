@@ -9,13 +9,20 @@
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist"
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["shroudbridge"]
+      }
+    }
+  },
   "app": {
     "windows": [
       {
         "label": "main",
         "title": "Shroud Bridge",
         "width": 520,
-        "height": 640,
+        "height": 720,
         "resizable": true
       }
     ],

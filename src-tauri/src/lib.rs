@@ -1,25 +1,41 @@
+mod credentials;
 mod llm_proxy;
 
 use std::sync::Mutex;
 
-use tauri::Manager;
+use serde::Serialize;
+use tauri::image::Image;
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::TrayIconBuilder;
+use tauri::{Manager, WindowEvent};
 use tokio::sync::oneshot;
 
+fn show_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
+fn tray_icon_embedded() -> tauri::Result<Image<'static>> {
+    Image::from_bytes(include_bytes!("../icons/32x32.png"))
+}
+
 struct ProxyStateInner {
-    /// When dropped after `send(())`, the Axum server shuts down.
     shutdown_tx: Option<oneshot::Sender<()>>,
 }
 
 pub struct ProxyState {
     inner: Mutex<ProxyStateInner>,
+    /// Last successful proxy base, e.g. `http://127.0.0.1:11434`
+    bound_base: Mutex<Option<String>>,
 }
 
 impl Default for ProxyState {
     fn default() -> Self {
         Self {
-            inner: Mutex::new(ProxyStateInner {
-                shutdown_tx: None,
-            }),
+            inner: Mutex::new(ProxyStateInner { shutdown_tx: None }),
+            bound_base: Mutex::new(None),
         }
     }
 }
@@ -30,7 +46,90 @@ impl ProxyState {
         if let Some(tx) = g.shutdown_tx.take() {
             let _ = tx.send(());
         }
+        let mut b = self.bound_base.lock().map_err(|e| e.to_string())?;
+        *b = None;
         Ok(())
+    }
+
+    fn set_bound_base(&self, base: String) -> Result<(), String> {
+        let mut b = self.bound_base.lock().map_err(|e| e.to_string())?;
+        *b = Some(base);
+        Ok(())
+    }
+
+    pub fn get_bound_base(&self) -> Result<Option<String>, String> {
+        let b = self.bound_base.lock().map_err(|e| e.to_string())?;
+        Ok(b.clone())
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProxyStatusResponse {
+    pub running: bool,
+    pub base_url: Option<String>,
+}
+
+#[tauri::command]
+fn credential_save(agent_key: String) -> Result<(), String> {
+    credentials::save(&agent_key)
+}
+
+#[tauri::command]
+fn credential_load() -> Result<Option<String>, String> {
+    credentials::load()
+}
+
+#[tauri::command]
+fn credential_clear() -> Result<(), String> {
+    credentials::clear()
+}
+
+#[tauri::command]
+async fn test_agent_exchange(api_url: String, agent_key: String) -> Result<(), String> {
+    if agent_key.trim().is_empty() {
+        return Err("Agent credentials are required.".into());
+    }
+    llm_proxy::resolve_shroud_agent_key(api_url.trim(), agent_key.trim()).await?;
+    Ok(())
+}
+
+#[tauri::command]
+fn proxy_status(state: tauri::State<'_, ProxyState>) -> Result<ProxyStatusResponse, String> {
+    let base = state.get_bound_base()?;
+    Ok(ProxyStatusResponse {
+        running: base.is_some(),
+        base_url: base,
+    })
+}
+
+/// Best-effort: open a GUI app by name (macOS `open -a`).
+#[tauri::command]
+fn open_gui_app(app_name: String) -> Result<(), String> {
+    let name = app_name.trim();
+    if name.is_empty() {
+        return Err("App name is required.".into());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-a", name])
+            .spawn()
+            .map_err(|e| format!("Could not open {name}: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", name])
+            .spawn()
+            .map_err(|e| format!("Could not start {name}: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = name;
+        Err("Opening apps from the bridge is only wired for macOS and Windows.".into())
     }
 }
 
@@ -69,12 +168,15 @@ async fn start_proxy(
         g.shutdown_tx = Some(shutdown_tx);
     }
 
+    let base = format!("http://127.0.0.1:{bound_port}");
+    state.set_bound_base(base.clone())?;
+
     let listener_owned = listener;
     tauri::async_runtime::spawn(async move {
         llm_proxy::run_server(listener_owned, serve_state, shutdown_rx).await;
     });
 
-    Ok(format!("http://127.0.0.1:{bound_port}"))
+    Ok(base)
 }
 
 #[tauri::command]
@@ -82,11 +184,67 @@ async fn stop_proxy(state: tauri::State<'_, ProxyState>) -> Result<(), String> {
     state.stop()
 }
 
+fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
+    let show_i = MenuItem::with_id(app, "show", "Show Shroud Bridge", true, None::<&str>)?;
+    let quit_i = MenuItem::with_id(app, "quit", "Quit Shroud Bridge", true, None::<&str>)?;
+    let sep = PredefinedMenuItem::separator(app)?;
+    let menu = Menu::with_items(app, &[&show_i, &sep, &quit_i])?;
+
+    let icon = tray_icon_embedded()?;
+
+    let _tray = TrayIconBuilder::new()
+        .icon(icon)
+        .menu(&menu)
+        .tooltip("Shroud Bridge — local proxy to 1Claw Shroud")
+        .on_menu_event(|app, event| {
+            match event.id.as_ref() {
+                "show" => show_main_window(app),
+                "quit" => {
+                    app.exit(0);
+                }
+                _ => {}
+            }
+        })
+        .build(app)?;
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .manage(ProxyState::default())
-        .invoke_handler(tauri::generate_handler![start_proxy, stop_proxy])
+    let mut builder = tauri::Builder::default()
+        .plugin(tauri_plugin_deep_link::init())
+        .manage(ProxyState::default());
+
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}));
+    }
+
+    builder
+        .setup(|app| {
+            setup_tray(app)?;
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if window.label() != "main" {
+                return;
+            }
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
+        .invoke_handler(tauri::generate_handler![
+            start_proxy,
+            stop_proxy,
+            credential_save,
+            credential_load,
+            credential_clear,
+            test_agent_exchange,
+            proxy_status,
+            open_gui_app,
+        ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
