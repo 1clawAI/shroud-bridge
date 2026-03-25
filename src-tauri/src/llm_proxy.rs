@@ -182,6 +182,8 @@ fn models() -> Response<Body> {
 {"id":"gpt-4.1-mini","object":"model","owned_by":"openai"},
 {"id":"o3-mini","object":"model","owned_by":"openai"},
 {"id":"claude-sonnet-4-20250514","object":"model","owned_by":"anthropic"},
+{"id":"claude-opus-4-6","object":"model","owned_by":"anthropic"},
+{"id":"claude-sonnet-4-6","object":"model","owned_by":"anthropic"},
 {"id":"claude-3.5-sonnet-20241022","object":"model","owned_by":"anthropic"},
 {"id":"gemini-2.5-flash","object":"model","owned_by":"google"},
 {"id":"gemini-2.5-pro","object":"model","owned_by":"google"}
