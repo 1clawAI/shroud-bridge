@@ -1,0 +1,79 @@
+# Publishes installers to https://github.com/1clawAI/shroud-bridge/releases
+#
+# How to ship a version:
+# 1. Bump "version" in package.json and src-tauri/tauri.conf.json (keep them in sync).
+# 2. Commit and push to main.
+# 3. Tag and push (example for 0.1.0):
+#      git tag v0.1.0
+#      git push origin v0.1.0
+#
+# This workflow runs once per tag and uploads Linux (.deb / .AppImage), Windows
+# (.msi / .exe), and macOS (.dmg) bundles from each runner.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            label: linux
+          - os: windows-latest
+            label: windows
+          - os: macos-latest
+            label: macos
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Linux — Tauri / WebKit dependencies
+        if: matrix.label == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf \
+            build-essential curl wget file libssl-dev
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Build bundles
+        run: npm run build
+
+      # Upload everything Tauri emitted under bundle/ for this OS (each runner only has its own artifacts).
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Shroud Bridge ${{ github.ref_name }}
+          # Avoid three jobs all rewriting notes; Linux job adds auto-generated notes once.
+          generate_release_notes: ${{ matrix.label == 'linux' }}
+          fail_on_unmatched_files: false
+          files: |
+            src-tauri/target/release/bundle/**/*.deb
+            src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/release/bundle/**/*.rpm
+            src-tauri/target/release/bundle/**/*.msi
+            src-tauri/target/release/bundle/**/*.exe
+            src-tauri/target/release/bundle/**/*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
