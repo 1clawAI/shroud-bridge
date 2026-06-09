@@ -5,6 +5,24 @@ export interface ShroudBridgeImportPayload {
     apiUrl?: string;
     shroudUrl?: string;
     port?: number;
+    /** SEC-002: Set when apiUrl or shroudUrl points to a non-allowlisted host. */
+    untrustedHost?: boolean;
+}
+
+const ALLOWED_HOSTS = new Set([
+    "api.1claw.xyz",
+    "shroud.1claw.xyz",
+    "localhost",
+    "127.0.0.1",
+]);
+
+function isAllowedUrl(urlStr: string): boolean {
+    try {
+        const u = new URL(urlStr);
+        return ALLOWED_HOSTS.has(u.hostname);
+    } catch {
+        return false;
+    }
 }
 
 export function parseShroudBridgeImport(url: string): ShroudBridgeImportPayload | null {
@@ -22,11 +40,20 @@ export function parseShroudBridgeImport(url: string): ShroudBridgeImportPayload 
         const o = JSON.parse(bin) as Record<string, unknown>;
         const agentKey = typeof o.agentKey === "string" ? o.agentKey : "";
         if (!agentKey) return null;
+
+        const apiUrl = typeof o.apiUrl === "string" ? o.apiUrl : undefined;
+        const shroudUrl = typeof o.shroudUrl === "string" ? o.shroudUrl : undefined;
+
+        const untrustedHost =
+            (apiUrl != null && !isAllowedUrl(apiUrl)) ||
+            (shroudUrl != null && !isAllowedUrl(shroudUrl));
+
         return {
             agentKey,
-            apiUrl: typeof o.apiUrl === "string" ? o.apiUrl : undefined,
-            shroudUrl: typeof o.shroudUrl === "string" ? o.shroudUrl : undefined,
+            apiUrl,
+            shroudUrl,
             port: typeof o.port === "number" ? o.port : undefined,
+            untrustedHost: untrustedHost || undefined,
         };
     } catch {
         return null;

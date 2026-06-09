@@ -17,6 +17,7 @@ use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 
 const MAX_PORT_TRIES: u32 = 32;
+const MAX_BODY_SIZE: usize = 10 * 1024 * 1024; // 10MB
 
 #[derive(Clone)]
 pub struct ProxyServeState {
@@ -24,6 +25,8 @@ pub struct ProxyServeState {
     pub provider_override: Option<String>,
     pub shroud_url: String,
     pub client: reqwest::Client,
+    /// SEC-003: Per-session bearer token required on incoming requests.
+    pub local_auth_token: String,
 }
 
 #[derive(Deserialize)]
@@ -153,7 +156,7 @@ pub async fn try_bind_port(preferred: u32) -> Result<(TcpListener, u16, bool), S
 fn cors_preflight() -> Response<Body> {
     Response::builder()
         .status(StatusCode::NO_CONTENT)
-        .header("Access-Control-Allow-Origin", "*")
+        .header("Access-Control-Allow-Origin", "http://localhost")
         .header(
             "Access-Control-Allow-Methods",
             "GET, POST, OPTIONS",
@@ -287,7 +290,27 @@ async fn dispatch(
         return cors_preflight();
     }
 
+    // SEC-003: Require local bearer auth token on all non-health requests.
     let path = uri.path();
+    if path != "/health" && path != "/v1/health" {
+        let auth_valid = parts
+            .headers
+            .get("authorization")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.strip_prefix("Bearer "))
+            .map(|t| t == state.local_auth_token)
+            .unwrap_or(false);
+        if !auth_valid {
+            return Response::builder()
+                .status(StatusCode::UNAUTHORIZED)
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    r#"{"error":{"message":"Missing or invalid local auth token","type":"auth_error"}}"#,
+                ))
+                .unwrap();
+        }
+    }
+
     if path == "/health" || path == "/v1/health" {
         return health();
     }
@@ -295,8 +318,22 @@ async fn dispatch(
         return models();
     }
 
+    // SEC-003: Body size limit to prevent OOM
     let body_bytes = match body.collect().await {
-        Ok(collected) => collected.to_bytes(),
+        Ok(collected) => {
+            let bytes = collected.to_bytes();
+            if bytes.len() > MAX_BODY_SIZE {
+                return Response::builder()
+                    .status(StatusCode::PAYLOAD_TOO_LARGE)
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(format!(
+                        r#"{{"error":{{"message":"Request body too large ({} bytes, max {MAX_BODY_SIZE})","type":"proxy_error"}}}}"#,
+                        bytes.len()
+                    )))
+                    .unwrap();
+            }
+            bytes
+        }
         Err(e) => {
             return Response::builder()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)

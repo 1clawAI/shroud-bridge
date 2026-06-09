@@ -85,11 +85,43 @@ fn credential_clear() -> Result<(), String> {
     credentials::clear()
 }
 
+/// SEC-002: Only allow network calls to known 1Claw hosts (or localhost for dev).
+fn validate_url_host(url: &str) -> Result<(), String> {
+    const ALLOWED_HOSTS: &[&str] = &[
+        "api.1claw.xyz",
+        "shroud.1claw.xyz",
+        "localhost",
+        "127.0.0.1",
+    ];
+    let parsed = url::Url::parse(url).map_err(|e| format!("Invalid URL: {e}"))?;
+    let host = parsed.host_str().unwrap_or("");
+    if !ALLOWED_HOSTS.contains(&host) {
+        return Err(format!(
+            "Security: URL host '{}' is not in the allowed hosts list. Only api.1claw.xyz, shroud.1claw.xyz, and localhost are permitted.",
+            host
+        ));
+    }
+    Ok(())
+}
+
+/// SEC-003: Generate a random bearer token for local proxy auth.
+fn generate_local_token() -> String {
+    use std::fmt::Write;
+    let mut buf = [0u8; 32];
+    getrandom::fill(&mut buf).expect("getrandom failed");
+    let mut hex = String::with_capacity(64);
+    for byte in &buf {
+        let _ = write!(hex, "{byte:02x}");
+    }
+    hex
+}
+
 #[tauri::command]
 async fn test_agent_exchange(api_url: String, agent_key: String) -> Result<(), String> {
     if agent_key.trim().is_empty() {
         return Err("Agent credentials are required.".into());
     }
+    validate_url_host(api_url.trim())?;
     llm_proxy::resolve_shroud_agent_key(api_url.trim(), agent_key.trim()).await?;
     Ok(())
 }
@@ -144,6 +176,8 @@ async fn start_proxy(
     if agent_key.trim().is_empty() {
         return Err("Agent credentials are required.".into());
     }
+    validate_url_host(api_url.trim())?;
+    validate_url_host(shroud_url.trim())?;
 
     state.stop()?;
 
@@ -154,11 +188,13 @@ async fn start_proxy(
         llm_proxy::try_bind_port(port).await?;
 
     let client = llm_proxy::build_client()?;
+    let local_auth_token = generate_local_token();
     let serve_state = std::sync::Arc::new(llm_proxy::ProxyServeState {
         agent_key: resolved,
         provider_override: None,
         shroud_url: shroud_url.trim().to_string(),
         client,
+        local_auth_token: local_auth_token.clone(),
     });
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
@@ -176,7 +212,8 @@ async fn start_proxy(
         llm_proxy::run_server(listener_owned, serve_state, shutdown_rx).await;
     });
 
-    Ok(base)
+    // Return base URL + local auth token so the UI can pass it to configured clients
+    Ok(format!("{}|{}", base, local_auth_token))
 }
 
 #[tauri::command]
