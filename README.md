@@ -1,9 +1,12 @@
 # Shroud Bridge
 
-Small **desktop app** (Tauri) that runs a **local OpenAI-compatible → Shroud** proxy in-process (**no Node.js** on the user’s machine). Rust implementation: `src-tauri/src/llm_proxy.rs`. The [`1claw proxy`](https://docs.1claw.xyz) CLI mirrors this behavior in `packages/cli/src/commands/proxy.ts` in the [1claw monorepo](https://github.com/1clawAI/1claw).
+Desktop app (Tauri) that runs a local OpenAI-compatible proxy to [Shroud](https://shroud.1claw.xyz). Point Cursor, Continue, or any client that speaks the OpenAI API at `http://127.0.0.1:...` and your LLM requests go through Shroud's inspection pipeline before they hit the upstream provider.
+
+No Node.js required on the user's machine. The proxy runs in Rust inside the Tauri shell (`src-tauri/src/llm_proxy.rs`). The [`1claw proxy`](https://docs.1claw.xyz) CLI command does the same thing if you prefer terminal-only setup.
+
+You need a 1Claw agent with Shroud enabled and `ocv_` credentials (or `uuid:ocv_...`). Network access to your Vault API and Shroud URLs.
 
 - **License:** MIT (see `LICENSE`)
-- **Requirements:** A 1Claw **agent** with Shroud enabled and `ocv_` credentials (or `uuid:ocv_…`). Network access to your **Vault API** and **Shroud** URLs.
 
 ## Public repository
 
