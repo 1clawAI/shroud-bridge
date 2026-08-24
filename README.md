@@ -53,6 +53,10 @@ The monorepo runs [`.github/workflows/shroud-bridge.yml`](https://github.com/1cl
 
 - **Parity:** When changing proxy behavior, update **`src-tauri/src/llm_proxy.rs`** and the CLI **`proxy`** command together (or add shared contract tests).
 
+## Platform v0.56+ (guardrail governance)
+
+Shroud adds shadow/enforce execution guardrails, address screening, and tx escalation to HITL in **v0.56**. This desktop proxy forwards to Shroud unchanged — configure per-agent policies in the 1Claw dashboard.
+
 ## Docs
 
 - [IDE & Shroud setup](https://docs.1claw.xyz/docs/guides/ide-shroud-setup)
