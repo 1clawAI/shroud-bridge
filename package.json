@@ -20,11 +20,11 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.2.0",
+    "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-deep-link": "^2.4.7"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.2.7",
+    "@tauri-apps/cli": "^2.11.0",
     "typescript": "^5.7.3",
     "vite": "^6.0.7"
   }
