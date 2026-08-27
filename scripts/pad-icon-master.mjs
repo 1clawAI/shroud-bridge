@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 /**
- * Build a macOS-safe 1024×1024 icon master: opaque black canvas, logo inset ~10%.
- * Strips pre-baked squircle alpha (macOS applies its own mask) and scales artwork
- * to Apple's ~824px safe area (80.5% of 1024).
+ * Build a macOS-safe 1024×1024 icon master on a transparent canvas.
+ *
+ * macOS Dock applies its own squircle mask at runtime. Icons must have
+ * transparent corners (not an opaque square) and artwork scaled to roughly
+ * 50–58% of the canvas — matching neighbors like Cursor (~50% color bbox).
+ *
+ * Strips any pre-baked squircle alpha from the brand source, extracts the
+ * round logo artwork, scales it down, and centers it on transparency.
  *
  * Usage: node scripts/pad-icon-master.mjs [source.png] [output.png]
  */
@@ -16,8 +21,8 @@ const root = path.resolve(__dirname, "..");
 const iconsDir = path.join(root, "src-tauri", "icons");
 
 const CANVAS = 1024;
-/** Apple macOS app icon artwork safe area (pt) at 1024px. */
-const TARGET = 824;
+/** Target max dimension for logo artwork (~54% of canvas; Cursor ≈ 50%). */
+const TARGET = 560;
 
 const defaultSource = path.join(
   root,
@@ -35,7 +40,7 @@ if (!fs.existsSync(input)) {
   process.exit(1);
 }
 
-// Flatten premultiplied squircle alpha onto opaque black.
+// Flatten premultiplied squircle alpha onto opaque black so trim finds logo bounds.
 const flattened = await sharp(input).flatten({ background: { r: 0, g: 0, b: 0 } }).png().toBuffer();
 
 // Trim near-black fringe; threshold ignores anti-aliased squircle edge pixels.
@@ -59,7 +64,7 @@ await sharp({
     width: CANVAS,
     height: CANVAS,
     channels: 4,
-    background: { r: 0, g: 0, b: 0, alpha: 1 },
+    background: { r: 0, g: 0, b: 0, alpha: 0 },
   },
 })
   .composite([{ input: scaled, left, top }])
@@ -68,5 +73,5 @@ await sharp({
 
 const padPct = (((CANVAS - newW) / 2 / CANVAS) * 100).toFixed(1);
 console.log(
-  `Wrote ${output}\n  source: ${input}\n  trimmed: ${trimmed.width}×${trimmed.height} → scaled ${newW}×${newH} (${((newW / CANVAS) * 100).toFixed(1)}%)\n  inset: ~${padPct}% per side, opaque black canvas`
+  `Wrote ${output}\n  source: ${input}\n  trimmed: ${trimmed.width}×${trimmed.height} → scaled ${newW}×${newH} (${((newW / CANVAS) * 100).toFixed(1)}%)\n  inset: ~${padPct}% per side, transparent canvas (macOS applies squircle)`
 );
