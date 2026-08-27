@@ -1,6 +1,6 @@
 {
   "name": "shroud-bridge",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "Desktop Shroud Bridge — local OpenAI-compatible proxy → Shroud (1Claw)",
   "license": "MIT",
@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.0",
+    "sharp": "^0.34.5",
     "typescript": "^5.7.3",
     "vite": "^6.0.7"
   }
