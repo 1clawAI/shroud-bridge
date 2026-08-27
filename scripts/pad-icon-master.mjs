@@ -2,14 +2,12 @@
 /**
  * Build a macOS-safe 1024×1024 icon master on a transparent canvas.
  *
- * macOS Dock applies its own squircle mask at runtime. Icons must have
- * transparent corners (not an opaque square) and artwork scaled to roughly
- * 50–58% of the canvas — matching neighbors like Cursor (~50% color bbox).
+ * macOS Dock applies its own squircle mask at runtime. Legacy workflow: strip
+ * pre-baked squircle alpha, scale artwork down, center on transparency.
  *
- * Strips any pre-baked squircle alpha from the brand source, extracts the
- * round logo artwork, scales it down, and centers it on transparency.
+ * With --no-pad (brand kit squircle master), copies the source unchanged.
  *
- * Usage: node scripts/pad-icon-master.mjs [source.png] [output.png]
+ * Usage: node scripts/pad-icon-master.mjs [source.png] [output.png] [--no-pad]
  */
 import sharp from "sharp";
 import { fileURLToPath } from "node:url";
@@ -24,20 +22,35 @@ const CANVAS = 1024;
 /** Target max dimension for logo artwork (~54% of canvas; Cursor ≈ 50%). */
 const TARGET = 560;
 
-const defaultSource = path.join(
+const argv = process.argv.slice(2).filter((a) => a !== "--no-pad");
+const noPad = process.argv.includes("--no-pad");
+
+const brandKitDefault = path.join(
+  iconsDir,
+  "1024x1024.png"
+);
+const dashboardDefault = path.join(
   root,
   "../../dashboard/public/logos/png/1claw-icon-dark-1024.png"
 );
 const fallbackSource = path.join(iconsDir, "1024x1024.png");
-const input = path.resolve(
-  process.argv[2] ||
-    (fs.existsSync(defaultSource) ? defaultSource : fallbackSource)
-);
-const output = path.resolve(process.argv[3] || path.join(iconsDir, "1024x1024.png"));
+const defaultSource = fs.existsSync(dashboardDefault)
+  ? dashboardDefault
+  : fallbackSource;
+
+const input = path.resolve(argv[0] || defaultSource);
+const output = path.resolve(argv[1] || brandKitDefault);
 
 if (!fs.existsSync(input)) {
   console.error(`Source not found: ${input}`);
   process.exit(1);
+}
+
+if (noPad) {
+  fs.mkdirSync(path.dirname(output), { recursive: true });
+  fs.copyFileSync(input, output);
+  console.log(`Wrote ${output}\n  source: ${input} (--no-pad, brand kit squircle copied as-is)`);
+  process.exit(0);
 }
 
 // Flatten premultiplied squircle alpha onto opaque black so trim finds logo bounds.
