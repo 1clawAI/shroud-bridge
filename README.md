@@ -1,8 +1,10 @@
 # Shroud Bridge
 
-Desktop app (Tauri) that runs a local OpenAI-compatible proxy to [Shroud](https://shroud.1claw.xyz). Point Cursor, Continue, or any client that speaks the OpenAI API at `http://127.0.0.1:...` and your LLM requests go through Shroud's inspection pipeline before they hit the upstream provider.
+> ⭐ **Star [1clawAI/agent-templates](https://github.com/1clawAI/agent-templates)** — ready-to-run agent templates wired to 1Claw. It is our single starred repo.
 
-No Node.js required on the user's machine. The proxy runs in Rust inside the Tauri shell (`src-tauri/src/llm_proxy.rs`). The [`1claw proxy`](https://docs.1claw.xyz) CLI command does the same thing if you prefer terminal-only setup.
+Desktop app (Tauri) that runs a local OpenAI-compatible proxy to [Shroud](https://shroud.1claw.co). Point Cursor, Continue, or any client that speaks the OpenAI API at `http://127.0.0.1:...` and your LLM requests go through Shroud's inspection pipeline before they hit the upstream provider.
+
+No Node.js required on the user's machine. The proxy runs in Rust inside the Tauri shell (`src-tauri/src/llm_proxy.rs`). The [`1claw proxy`](https://docs.1claw.co) CLI command does the same thing if you prefer terminal-only setup.
 
 You need a 1Claw agent with Shroud enabled and `ocv_` credentials (or `uuid:ocv_...`). Network access to your Vault API and Shroud URLs.
 
@@ -59,5 +61,5 @@ Shroud adds shadow/enforce execution guardrails, address screening, and tx escal
 
 ## Docs
 
-- [IDE & Shroud setup](https://docs.1claw.xyz/docs/guides/ide-shroud-setup)
-- [Shroud guide](https://docs.1claw.xyz/docs/guides/shroud)
+- [IDE & Shroud setup](https://docs.1claw.co/docs/guides/ide-shroud-setup)
+- [Shroud guide](https://docs.1claw.co/docs/guides/shroud)
