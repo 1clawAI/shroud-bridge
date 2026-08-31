@@ -2,8 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import "./style.css";
 import { parseShroudBridgeImport } from "./import";
 
-const DEFAULT_API = "https://api.1claw.xyz";
-const DEFAULT_SHROUD = "https://shroud.1claw.xyz";
+const DEFAULT_API = "https://api.1claw.co";
+const DEFAULT_SHROUD = "https://shroud.1claw.co";
 const DEFAULT_PORT = "11434";
 const STORAGE_KEY = "shroud-bridge.v1";
 

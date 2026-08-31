@@ -88,6 +88,9 @@ fn credential_clear() -> Result<(), String> {
 /// SEC-002: Only allow network calls to known 1Claw hosts (or localhost for dev).
 fn validate_url_host(url: &str) -> Result<(), String> {
     const ALLOWED_HOSTS: &[&str] = &[
+        "api.1claw.co",
+        "shroud.1claw.co",
+        // Legacy domain: still answers, so keep accepting it until retired.
         "api.1claw.xyz",
         "shroud.1claw.xyz",
         "localhost",
@@ -97,7 +100,7 @@ fn validate_url_host(url: &str) -> Result<(), String> {
     let host = parsed.host_str().unwrap_or("");
     if !ALLOWED_HOSTS.contains(&host) {
         return Err(format!(
-            "Security: URL host '{}' is not in the allowed hosts list. Only api.1claw.xyz, shroud.1claw.xyz, and localhost are permitted.",
+            "Security: URL host '{}' is not in the allowed hosts list. Only api.1claw.co, shroud.1claw.co (and their .xyz predecessors), and localhost are permitted.",
             host
         ));
     }
